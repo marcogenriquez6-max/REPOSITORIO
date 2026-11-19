@@ -1,3 +1,8 @@
+# fly.toml app configuration file generated for repositorio-g-g5xq on 2026-11-19T23:08:24Z
+#
+# See https://docs.fly.io/reference/configuration for information about how to use this file.
+#
+
 app = 'repositorio-g-g5xq'
 primary_region = 'ams'
 
@@ -26,3 +31,4 @@ primary_region = 'ams'
   memory = '512mb'
   cpu_kind = 'shared'
   cpus = 1
+  memory_mb = 512
