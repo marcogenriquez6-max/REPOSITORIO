@@ -1,10 +1,10 @@
 FROM node:20-alpine AS build
 WORKDIR /app
-COPY package*.json ./
+COPY backend/package*.json ./
 RUN npm ci
-COPY prisma ./prisma
+COPY backend/prisma ./prisma
 RUN npx prisma generate
-COPY . .
+COPY backend/ ./
 RUN npm run build
 
 FROM node:20-alpine
@@ -13,6 +13,6 @@ ENV NODE_ENV=production
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/prisma ./prisma
-COPY package*.json ./
-EXPOSE 4000
+COPY backend/package*.json ./
+EXPOSE 8080
 CMD ["node", "dist/app.js"]
