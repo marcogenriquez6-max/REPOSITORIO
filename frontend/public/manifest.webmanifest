@@ -1,0 +1,19 @@
+{
+  "name": "Repositorio Institucional UNIOR",
+  "short_name": "Repositorio UNIOR",
+  "description": "Acceso abierto a la producción académica de la Universidad Privada de Oruro.",
+  "lang": "es",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fbf8f3",
+  "theme_color": "#3d0f10",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

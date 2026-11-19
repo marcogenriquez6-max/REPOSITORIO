@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Repositorio Institucional UNIOR">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3d0f10"/>
+      <stop offset=".55" stop-color="#6b211f"/>
+      <stop offset="1" stop-color="#9e2422"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="20" y1="0" x2="44" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f2a900"/>
+      <stop offset="1" stop-color="#c27700"/>
+    </linearGradient>
+    <linearGradient id="page" x1="14" y1="20" x2="50" y2="46" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#d8e6f7"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="64" height="64" rx="15" fill="url(#bg)"/>
+  <circle cx="52" cy="8" r="20" fill="#f2a900" opacity=".22"/>
+  <circle cx="8" cy="58" r="16" fill="#e1252b" opacity=".22"/>
+
+  <path d="M13.5 21.2c6.3-2.6 12.3-1.9 18.5 1.5 6.2-3.4 12.2-4.1 18.5-1.5v23c-6.3-2.6-12.3-1.9-18.5 1.5-6.2-3.4-12.2-4.1-18.5-1.5v-23Z" fill="url(#page)"/>
+  <path d="M32 22.9v24.3" stroke="#6b211f" stroke-width="1.8" stroke-linecap="round" opacity=".3"/>
+  <path d="M18.5 26.4c3.3-1 6.5-.6 9.8.9M18.5 31.4c3.3-1 6.5-.6 9.8.9M43.4 27.3c-3.3-1.5-6.5-1.9-9.8-.9M43.4 32.3c-3.3-1.5-6.5-1.9-9.8-.9" stroke="#bd8a72" stroke-width="1.7" stroke-linecap="round" opacity=".5"/>
+
+  <rect x="21" y="50.2" width="22" height="2.8" rx="1.4" fill="url(#accent)"/>
+</svg>

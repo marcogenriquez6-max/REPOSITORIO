@@ -1,0 +1,32 @@
+export const ITEM_STATUS = {
+  BORRADOR: 'BORRADOR',
+  EN_REVISION: 'EN_REVISION',
+  OBSERVADO: 'OBSERVADO',
+  PUBLICADO: 'PUBLICADO',
+  EMBARGADO: 'EMBARGADO',
+} as const;
+
+export type ItemStatus = keyof typeof ITEM_STATUS;
+
+export const ROLES = {
+  ADMIN: 'ADMIN',
+  REVISOR: 'REVISOR',
+  DEPOSITANTE: 'DEPOSITANTE',
+} as const;
+
+export type Role = keyof typeof ROLES;
+
+export const BITSTREAM_BUNDLE = {
+  ORIGINAL: 'ORIGINAL',
+  THUMBNAIL: 'THUMBNAIL',
+  LICENCIA: 'LICENCIA',
+} as const;
+
+export const WORKFLOW_ACTION = {
+  ENVIADO: 'ENVIADO',
+  APROBADO: 'APROBADO',
+  OBSERVADO: 'OBSERVADO',
+  DEVUELTO: 'DEVUELTO',
+  PUBLICADO: 'PUBLICADO',
+  EMBARGADO: 'EMBARGADO',
+} as const;
