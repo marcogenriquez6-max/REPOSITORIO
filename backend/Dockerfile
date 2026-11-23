@@ -1,5 +1,6 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
+RUN apk add --no-cache openssl libc6-compat
 COPY backend/package*.json ./
 RUN npm ci
 COPY backend/prisma ./prisma
@@ -7,6 +8,7 @@ RUN npx prisma generate && npm prune --omit=dev
 
 FROM node:22-alpine AS build
 WORKDIR /app
+RUN apk add --no-cache openssl libc6-compat
 COPY backend/package*.json ./
 RUN npm ci
 COPY backend/prisma ./prisma
@@ -23,7 +25,7 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
 COPY backend/package*.json ./
 COPY backend/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN apk add --no-cache su-exec \
+RUN apk add --no-cache su-exec openssl libc6-compat \
     && mkdir -p /app/storage/originals /app/storage/thumbnails \
     && chown -R node:node /app \
     && chmod +x /usr/local/bin/docker-entrypoint.sh
