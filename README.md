@@ -10,9 +10,14 @@ Repositorio institucional universitario con metadatos Dublin Core.
 
 ## Inicio rápido
 
-### 1. Base de datos
+### 1. Configuración y base de datos
+
+Copie `.env.example` como `.env` en la raíz y complete `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `JWT_SECRET`, `JWT_REFRESH_SECRET`, `CORS_ORIGIN` y `VITE_API_URL`. No se aceptan secretos de ejemplo ni contraseñas por defecto.
+
 ```bash
-docker compose up -d
+cp .env.example .env
+# edite .env
+docker compose up -d --build
 ```
 
 ### 2. Backend
@@ -48,6 +53,6 @@ App: `http://localhost:5173`
 | --- | --- |
 | ADMIN | admin@unior.edu.bo |
 | REVISOR | postgrado@unior.edu.bo |
-| DEPOSITANTE | estudiante@unior.edu.bo |
+| DEPOSITANTE | biblioteca@unior.edu.bo |
 
 Las contraseñas se leen desde `backend/.env`; no se publican credenciales por defecto.

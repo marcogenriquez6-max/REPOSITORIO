@@ -7,6 +7,6 @@ const router = Router();
 const controller = new StatsController();
 
 router.get('/overview', optionalAuthenticate, (req, res, next) => controller.overview(req, res, next));
-router.get('/admin', authenticate, authorize('ADMIN'), (req, res, next) => controller.overview(req, res, next));
+router.get('/admin', authenticate, authorize('ADMIN'), (req, res, next) => controller.admin(req, res, next));
 
 export default router;

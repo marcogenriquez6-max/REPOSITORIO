@@ -1,6 +1,22 @@
 import { prisma } from '../../config/prisma';
 
 export class StatsService {
+  async publicOverview() {
+    const [byStatus, totalDownloads] = await Promise.all([
+      prisma.item.groupBy({
+        by: ['status'],
+        where: { status: { in: ['PUBLICADO', 'EMBARGADO'] } },
+        _count: { _all: true },
+      }),
+      prisma.bitstream.aggregate({ _sum: { downloadCount: true } }),
+    ]);
+
+    return {
+      byStatus: Object.fromEntries(byStatus.map((row) => [row.status, row._count._all])),
+      totalDownloads: totalDownloads._sum.downloadCount ?? 0,
+    };
+  }
+
   async overview() {
     const [byStatus, users, checks, pendingObservations, totalDownloads, topViewed, topDownloaded] = await Promise.all([
       prisma.item.groupBy({ by: ['status'], _count: { _all: true } }),

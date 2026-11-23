@@ -1,18 +1,32 @@
-FROM node:20-alpine AS build
+FROM node:22-alpine AS deps
+WORKDIR /app
+COPY backend/package*.json ./
+RUN npm ci
+COPY backend/prisma ./prisma
+RUN npx prisma generate && npm prune --omit=dev
+
+FROM node:22-alpine AS build
 WORKDIR /app
 COPY backend/package*.json ./
 RUN npm ci
 COPY backend/prisma ./prisma
 RUN npx prisma generate
-COPY backend/ ./
+COPY backend/tsconfig.json ./
+COPY backend/src ./src
 RUN npm run build
 
-FROM node:20-alpine
+FROM node:22-alpine
 WORKDIR /app
-ENV NODE_ENV=production
+ENV NODE_ENV=production STORAGE_ROOT=/app/storage
+COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
-COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/prisma ./prisma
 COPY backend/package*.json ./
-EXPOSE 8080
+COPY backend/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN apk add --no-cache su-exec \
+    && mkdir -p /app/storage/originals /app/storage/thumbnails \
+    && chown -R node:node /app \
+    && chmod +x /usr/local/bin/docker-entrypoint.sh
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+EXPOSE 4000
 CMD ["node", "dist/app.js"]

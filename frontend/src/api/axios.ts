@@ -31,6 +31,7 @@ api.interceptors.response.use(
             if (data?.token) localStorage.setItem('token', data.token);
             if (data?.refreshToken) localStorage.setItem('refreshToken', data.refreshToken);
             if (data?.user) localStorage.setItem('user', JSON.stringify(data.user));
+            window.dispatchEvent(new CustomEvent('unior:auth-refreshed', { detail: data }));
             return data?.token ?? null;
           })().finally(() => { refreshing = null; });
         }
@@ -46,6 +47,7 @@ api.interceptors.response.use(
       localStorage.removeItem('token');
       localStorage.removeItem('refreshToken');
       localStorage.removeItem('user');
+      window.dispatchEvent(new CustomEvent('unior:session-expired'));
       if (window.location.pathname !== '/login') {
         sessionStorage.setItem('unior:sessionExpired', '1');
         window.location.href = '/login';

@@ -1,37 +1,60 @@
 services:
   db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: unior
-      POSTGRES_PASSWORD: uniorpass
-      POSTGRES_DB: unior_repo
-    ports: ["5432:5432"]
+      POSTGRES_USER: ${POSTGRES_USER:?Defina POSTGRES_USER en .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD en .env}
+      POSTGRES_DB: ${POSTGRES_DB:?Defina POSTGRES_DB en .env}
+    ports: ["127.0.0.1:${POSTGRES_PORT:-5432}:5432"]
     volumes: [pgdata:/var/lib/postgresql/data]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U unior"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:?} -d ${POSTGRES_DB:?}"]
       interval: 5s
       timeout: 3s
       retries: 10
+    mem_limit: 1g
+    cpus: 1
 
   backend:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
     environment:
       NODE_ENV: production
       PORT: 4000
-      DATABASE_URL: postgresql://unior:uniorpass@db:5432/unior_repo
-      JWT_SECRET: change-me-in-prod
-      SEED_ADMIN_PASSWORD: ChangeMeAdminPass123!
-      SEED_REVIEWER_PASSWORD: ChangeMeReviewerPass123!
-      SEED_DEPOSITOR_PASSWORD: ChangeMeDepositorPass123!
-    ports: ["4000:4000"]
+      DATABASE_URL: postgresql://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@db:5432/${POSTGRES_DB:?}
+      JWT_SECRET: ${JWT_SECRET:?Defina JWT_SECRET en .env}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Defina JWT_REFRESH_SECRET en .env}
+      CORS_ORIGIN: ${CORS_ORIGIN:?Defina CORS_ORIGIN en .env}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:5173}
+    ports: ["127.0.0.1:4000:4000"]
     depends_on:
       db: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:4000/api/v1/health/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     command: sh -c "npx prisma migrate deploy && node dist/app.js"
+    mem_limit: 768m
+    cpus: 1
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:4000/api/v1}
+    restart: unless-stopped
     ports: ["8080:80"]
     depends_on: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost/index.html || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
 volumes:
   pgdata:

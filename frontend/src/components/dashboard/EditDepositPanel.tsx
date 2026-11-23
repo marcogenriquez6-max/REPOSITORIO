@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FileText, Save, UploadCloud, X } from 'lucide-react';
-import { depositApi, itemsApi } from '../../api/services';
+import { depositApi, itemsApi, reviewApi } from '../../api/services';
 import { getErrorMessage } from '../../api/errors';
 import Alert from '../ui/Alert';
 import { Skeleton } from '../ui/Skeleton';
@@ -57,6 +57,8 @@ function buildMetadata(item: Item, values: FormValues) {
     { element: 'date', qualifier: 'issued', value: values.year },
     { element: 'description', qualifier: 'abstract', value: values.abstract },
     ...splitList(values.keywords).map((keyword) => ({ element: 'subject', value: keyword })),
+    ...(item.collection?.name ? [{ element: 'subject', qualifier: 'programa', value: item.collection.name }] : []),
+    ...(item.collection?.community?.name ? [{ element: 'subject', qualifier: 'area', value: item.collection.community.name }] : []),
     { element: 'type', value: values.type },
     { element: 'rights', value: values.rights },
   ].map((metadata) => ({ schema: 'dc', ...metadata }));
@@ -73,6 +75,7 @@ export default function EditDepositPanel({ itemId, onClose, onDone }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState('');
   const [stage, setStage] = useState('');
+  const [responses, setResponses] = useState<Record<string, string>>({});
   const { register, handleSubmit, watch, reset, formState: { errors } } = useForm<FormValues>({ resolver: zodResolver(schema) });
   const { data: item, isLoading, isError, error } = useQuery({
     queryKey: ['deposit-detail', itemId],
@@ -87,11 +90,20 @@ export default function EditDepositPanel({ itemId, onClose, onDone }: Props) {
       advisor: metaAll(item, 'contributor', 'advisor').join(', '),
       year: meta(item, 'date', 'issued'),
       abstract: meta(item, 'description', 'abstract'),
-      keywords: metaAll(item, 'subject').join(', '),
+      keywords: metaAll(item, 'subject', null).join(', '),
       type: meta(item, 'type') || 'Trabajo académico',
       rights: meta(item, 'rights') || 'Uso académico',
     });
   }, [item, reset]);
+
+  const respondMutation = useMutation({
+    mutationFn: ({ id, response }: { id: string; response: string }) => reviewApi.respondObservation(id, response),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['deposit-detail', itemId] });
+      queryClient.invalidateQueries({ queryKey: ['my-deposits'] });
+      onDone('Respuesta registrada. La observación quedó marcada como resuelta.');
+    },
+  });
 
   const mutation = useMutation({
     mutationFn: async ({ values, submit }: { values: FormValues; submit: boolean }) => {
@@ -188,6 +200,27 @@ export default function EditDepositPanel({ itemId, onClose, onDone }: Props) {
                   <p className="mt-1 text-[10px] font-semibold text-amber-800/75">
                     {OBSERVATION_TYPE_LABELS[observation.type] ?? observation.type} · {formatDate(observation.createdAt, true)} · {observation.author?.fullName ?? 'Revisor'}
                   </p>
+                  <label className="mt-2 block text-[10px] font-bold text-amber-900">
+                    Su respuesta
+                    <textarea
+                      rows={2}
+                      value={responses[observation.id] ?? ''}
+                      onChange={(event) => setResponses((current) => ({ ...current, [observation.id]: event.target.value }))}
+                      className="input mt-1 text-xs"
+                      placeholder="Explique cómo corrigió este punto"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    disabled={respondMutation.isPending || !(responses[observation.id] ?? '').trim()}
+                    onClick={() => respondMutation.mutate({ id: observation.id, response: (responses[observation.id] ?? '').trim() })}
+                    className="btn-secondary mt-2 px-3 py-1.5 text-[10px]"
+                  >
+                    Registrar respuesta
+                  </button>
+                  {respondMutation.isError && (
+                    <p className="mt-1 text-[10px] font-semibold text-red-600">{getErrorMessage(respondMutation.error)}</p>
+                  )}
                 </li>
               ))}
             </ul>

@@ -67,7 +67,7 @@ export default function MyDepositsPage() {
     });
     if (sort === 'title') return [...filtered].sort((a, b) => meta(a, 'title').localeCompare(meta(b, 'title')));
     if (sort === 'status') return [...filtered].sort((a, b) => a.status.localeCompare(b.status));
-    return [...filtered].sort((a, b) => new Date(b.updatedAt ?? b.createdAt).getTime() - new Date(a.updatedAt ?? a.createdAt).getTime());
+    return [...filtered].sort((a, b) => new Date(b.updatedAt ?? b.createdAt ?? 0).getTime() - new Date(a.updatedAt ?? a.createdAt ?? 0).getTime());
   }, [items, query, tab, collectionId, sort]);
 
   const openDeposit = () => {
@@ -92,7 +92,7 @@ export default function MyDepositsPage() {
           <div className="relative flex flex-wrap items-end justify-between gap-5">
             <div>
               <p className="eyebrow">Área del depositante</p>
-              <h1 className="mt-2 page-title">Deps</h1>
+              <h1 className="mt-2 page-title">Mis depósitos</h1>
               <p className="page-subtitle">Gestione sus documentos, corrija observaciones y siga el estado de la revisión.</p>
               <div className="mt-5 flex flex-wrap gap-2">
                 <MiniStat value={counts.TODOS ?? 0} label="Depósitos" />

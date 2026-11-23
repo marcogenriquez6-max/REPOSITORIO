@@ -219,11 +219,8 @@ function Indicator({ icon: Icon, title, value, tone }: { icon: LucideIcon; title
     <div className="stat-card p-4 group cursor-default">
       <div className="relative flex items-start justify-between gap-2">
         <div className={`font-display text-2xl font-semibold leading-none tracking-tight ${tone}`}>{value}</div>
-        <span className={`flex h-8 w-8 items-center justify-center rounded-xl transition-all duration-300 group-hover:scale-110 ${tone}`}
-          style={{ background: 'rgba(currentcolor, 0.08)' }}>
-          <span className={`flex h-8 w-8 items-center justify-center rounded-xl bg-current/10`}>
-            <Icon className="h-4 w-4 opacity-80" aria-hidden="true" />
-          </span>
+        <span className={`flex h-8 w-8 items-center justify-center rounded-xl bg-unior-900/5 transition-all duration-300 group-hover:scale-110 ${tone}`}>
+          <Icon className="h-4 w-4 opacity-80" aria-hidden="true" />
         </span>
       </div>
       <div className="stat-label mt-2.5">{title}</div>

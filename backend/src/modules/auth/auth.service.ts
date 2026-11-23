@@ -12,7 +12,7 @@ export class AuthService {
     const ok = await bcrypt.compare(dto.password, user.passwordHash);
     if (!ok) throw new UnauthorizedError('Credenciales inválidas');
 
-    const payload = { id: user.id, email: user.email, role: user.role as Role };
+    const payload = { id: user.id, email: user.email, role: user.role as Role, tokenVersion: user.tokenVersion };
     const token = signAccessToken(payload);
     const refreshToken = signRefreshToken(payload);
 
@@ -36,13 +36,19 @@ export class AuthService {
 
     const user = await prisma.user.findUnique({ where: { id: String(decoded.sub) } });
     if (!user || !user.isActive) throw new ForbiddenError('Usuario inactivo o inexistente');
+    if (decoded.ver !== user.tokenVersion) throw new UnauthorizedError('Sesión revocada');
 
-    const payload = { id: user.id, email: user.email, role: user.role as Role };
+    const payload = { id: user.id, email: user.email, role: user.role as Role, tokenVersion: user.tokenVersion };
     return {
       token: signAccessToken(payload),
       refreshToken: signRefreshToken(payload),
       user: { id: user.id, email: user.email, fullName: user.fullName, role: user.role },
     };
+  }
+
+  async logout(userId: string) {
+    await prisma.user.update({ where: { id: userId }, data: { tokenVersion: { increment: 1 } } });
+    return { success: true };
   }
 
   async me(userId: string) {

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowUpRight, ClipboardCheck, Download, FileText, Users, type LucideIcon } from 'lucide-react';
@@ -29,12 +29,19 @@ export default function AdminPage() {
   const [newUserFullName, setNewUserFullName] = useState('');
   const [newUserRole, setNewUserRole] = useState('DEPOSITANTE');
   const [newUserPassword, setNewUserPassword] = useState('');
+  const [scopeReviewerId, setScopeReviewerId] = useState('');
+  const [scopeCommunities, setScopeCommunities] = useState<string[]>([]);
   const { data: stats, isLoading: statsLoading } = useQuery({ queryKey: ['admin-stats'], queryFn: adminApi.stats });
   const { data: communities = [] } = useQuery({ queryKey: ['communities'], queryFn: catalogApi.communities });
   const { data: usersData, isLoading: usersLoading } = useQuery({ queryKey: ['admin-users'], queryFn: adminApi.users });
   const { data: itemsData, isLoading: itemsLoading } = useQuery({
     queryKey: ['admin-items'],
     queryFn: () => itemsApi.list({ limit: 100 }),
+  });
+  const { data: scopeUser, isFetching: scopeLoading } = useQuery({
+    queryKey: ['user-scope', scopeReviewerId],
+    queryFn: () => usersApi.getById(scopeReviewerId),
+    enabled: !!scopeReviewerId,
   });
 
   const assign = useMutation({
@@ -56,6 +63,20 @@ export default function AdminPage() {
       queryClient.invalidateQueries({ queryKey: ['collections'] });
     },
     onError: (error) => notify(getErrorMessage(error, 'No se pudo crear la colección'), 'error'),
+  });
+
+  useEffect(() => {
+    if (scopeUser) setScopeCommunities(scopeUser.assignedFaculties.map((entry) => entry.community.id));
+  }, [scopeUser]);
+
+  const assignScope = useMutation({
+    mutationFn: () => usersApi.assignFaculties(scopeReviewerId, scopeCommunities),
+    onSuccess: () => {
+      notify('Ámbito del revisor actualizado.', 'success');
+      queryClient.invalidateQueries({ queryKey: ['user-scope', scopeReviewerId] });
+      queryClient.invalidateQueries({ queryKey: ['review-inbox'] });
+    },
+    onError: (error) => notify(getErrorMessage(error, 'No se pudo actualizar el ámbito'), 'error'),
   });
 
   const createUser = useMutation({
@@ -172,6 +193,47 @@ export default function AdminPage() {
             </>
           )}
 
+        </section>
+
+        <section className="card card-body">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <p className="eyebrow">Permisos</p>
+              <h2 className="mt-1.5 section-title">Ámbito de revisores</h2>
+              <p className="mt-1 text-xs leading-5 text-ink-soft/55">Delimite las facultades o carreras que cada revisor puede atender.</p>
+            </div>
+            {scopeLoading && <span className="chip">Cargando…</span>}
+          </div>
+          <div className="grid items-start gap-3 md:grid-cols-[1fr_1fr_auto]">
+            <label className="block">
+              <span className="label">Revisor</span>
+              <select value={scopeReviewerId} onChange={(event) => { setScopeReviewerId(event.target.value); setScopeCommunities([]); }} className="input mt-2">
+                <option value="">Seleccione un revisor…</option>
+                {reviewers.map((user) => (
+                  <option key={user.id} value={user.id}>{user.fullName} · {ROLE_LABELS[user.role]}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="label">Facultades o carreras</span>
+              <select
+                multiple
+                value={scopeCommunities}
+                onChange={(event) => setScopeCommunities(Array.from(event.target.selectedOptions, (option) => option.value))}
+                className="input mt-2 h-28"
+                disabled={!scopeReviewerId}
+              >
+                {communities.map((community) => <option key={community.id} value={community.id}>{community.name}</option>)}
+              </select>
+            </label>
+            <button
+              onClick={() => assignScope.mutate()}
+              disabled={!scopeReviewerId || scopeCommunities.length === 0 || assignScope.isPending}
+              className="btn-primary md:mt-7"
+            >
+              {assignScope.isPending ? 'Guardando…' : 'Guardar ámbito'}
+            </button>
+          </div>
         </section>
 
         <section className="grid gap-4 lg:grid-cols-2">

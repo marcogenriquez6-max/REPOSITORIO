@@ -61,6 +61,7 @@ model User {
   fullName          String         @map("full_name")
   role              UserRole
   isActive          Boolean        @default(true) @map("is_active")
+  tokenVersion      Int            @default(0) @map("token_version")
   createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
   lastLoginAt       DateTime?      @map("last_login_at") @db.Timestamptz(6)
@@ -74,6 +75,7 @@ model User {
 
   @@index([role])
   @@index([isActive])
+  @@index([fullName(ops: raw("gin_trgm_ops"))], type: Gin)
   @@map("users")
 }
 
@@ -107,6 +109,8 @@ model Community {
 
   @@unique([parentId, slug])
   @@index([parentId])
+  @@index([parentId, sortOrder])
+  @@index([isActive, sortOrder, name])
   @@map("communities")
 }
 
@@ -127,6 +131,8 @@ model Collection {
 
   @@unique([communityId, slug])
   @@index([communityId])
+  @@index([communityId, sortOrder])
+  @@index([isActive, sortOrder, name])
   @@map("collections")
 }
 
@@ -156,6 +162,10 @@ model Item {
   @@index([collectionId, status])
   @@index([creatorId])
   @@index([status, publishedAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+  @@index([status, submittedAt(sort: Desc)])
+  @@index([status, viewCount(sort: Desc)])
+  @@index([assignedReviewerId, status])
   @@index([embargoDate])
   @@map("items")
 }
@@ -196,7 +206,9 @@ model Bitstream {
 
   @@index([itemId])
   @@index([itemId, bundle])
+  @@index([itemId, isPrimary, createdAt])
   @@index([sha256Hash])
+  @@index([downloadCount(sort: Desc)])
   @@map("bitstreams")
 }
 
@@ -252,5 +264,6 @@ model Observation {
 
   @@index([itemId, status])
   @@index([itemId, createdAt(sort: Desc)])
+  @@index([status])
   @@map("observations")
 }

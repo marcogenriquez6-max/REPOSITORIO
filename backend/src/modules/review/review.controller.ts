@@ -40,6 +40,13 @@ export class ReviewController {
     } catch (e) { next(e); }
   }
 
+  async respondObservation(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!/^\d+$/.test(req.params.id)) throw new AppError('Identificador de observación inválido', 400, 'INVALID_ID');
+      res.json({ success: true, data: await service.respondObservation(BigInt(req.params.id), this.actor(req), req.body.response) });
+    } catch (e) { next(e); }
+  }
+
   async startReview(req: Request, res: Response, next: NextFunction) {
     try { res.json({ success: true, data: await service.startReview(req.params.itemId, this.actor(req)) }); } catch (e) { next(e); }
   }

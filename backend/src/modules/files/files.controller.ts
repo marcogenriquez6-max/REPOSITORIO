@@ -28,7 +28,9 @@ export class FilesController {
       const requester = req.user ? { id: req.user.id, role: req.user.role } : undefined;
       const file = await service.getDownload(req.params.bitstreamId, requester);
       res.setHeader('Content-Type', file.mime);
-      res.setHeader('Content-Disposition', `attachment; filename="${file.name.replace(/"/g, '')}"`);
+      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(file.name)}`);
+      res.setHeader('Cache-Control', 'private, no-store');
+      res.setHeader('Vary', 'Authorization');
       res.send(file.content);
     } catch (e) { next(e); }
   }
@@ -36,10 +38,11 @@ export class FilesController {
   async preview(req: Request, res: Response, next: NextFunction) {
     try {
       const requester = req.user ? { id: req.user.id, role: req.user.role } : undefined;
-      const file = await service.getDownload(req.params.bitstreamId, requester);
+      const file = await service.getDownload(req.params.bitstreamId, requester, false);
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `inline; filename="${file.name.replace(/"/g, '')}"`);
+      res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(file.name)}`);
       res.setHeader('Cache-Control', 'private, no-store');
+      res.setHeader('Vary', 'Authorization');
       res.send(file.content);
     } catch (e) { next(e); }
   }

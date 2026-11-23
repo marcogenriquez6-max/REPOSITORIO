@@ -1,4 +1,4 @@
-import { Prisma, ItemStatus, ObservationStatus, WorkflowAction, BitstreamBundle } from '@prisma/client';
+import { Prisma, ItemStatus, ObservationStatus, WorkflowAction, BitstreamBundle, UserRole } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { env } from '../../config/env';
 import { AppError, NotFoundError, assert } from '../../shared/errors';
@@ -147,30 +147,32 @@ export class WorkflowService {
     });
   }
 
-  async observe(itemId: string, reviewerId: string, comment: string, action: WorkflowAction = WorkflowAction.OBSERVADO) {
-    return prisma.$transaction(async (tx) => {
-      const item = await tx.item.findUnique({ where: { id: itemId } });
-      if (!item) throw new NotFoundError('Ítem no encontrado');
+  private async observeInTx(tx: Prisma.TransactionClient, itemId: string, reviewerId: string, comment: string, action: WorkflowAction) {
+    const item = await tx.item.findUnique({ where: { id: itemId } });
+    if (!item) throw new NotFoundError('Ítem no encontrado');
 
-      const from = item.status;
-      const to = ItemStatus.OBSERVADO;
-      assert(from === ItemStatus.EN_REVISION, new AppError('Solo ítems EN_REVISION pueden observarse', 409, 'INVALID_STATE'));
-      this.assertTransition(from, to);
+    const from = item.status;
+    const to = ItemStatus.OBSERVADO;
+    assert(from === ItemStatus.EN_REVISION, new AppError('Solo ítems EN_REVISION pueden observarse', 409, 'INVALID_STATE'));
+    this.assertTransition(from, to);
 
-      const updated = await this.updateWithVersion(tx, itemId, item.version, { status: to });
-      await tx.workflowLog.create({
-        data: {
-          itemId,
-          actorId: reviewerId,
-          action,
-          fromStatus: from,
-          toStatus: to,
-          comment,
-        },
-      });
-
-      return { item: updated, status: to };
+    const updated = await this.updateWithVersion(tx, itemId, item.version, { status: to });
+    await tx.workflowLog.create({
+      data: {
+        itemId,
+        actorId: reviewerId,
+        action,
+        fromStatus: from,
+        toStatus: to,
+        comment,
+      },
     });
+
+    return { item: updated, status: to };
+  }
+
+  async observe(itemId: string, reviewerId: string, comment: string, action: WorkflowAction = WorkflowAction.OBSERVADO) {
+    return prisma.$transaction((tx) => this.observeInTx(tx, itemId, reviewerId, comment, action));
   }
 
   async startReview(itemId: string, reviewerId: string) {
@@ -178,7 +180,11 @@ export class WorkflowService {
       const item = await tx.item.findUniqueOrThrow({ where: { id: itemId } });
       assert(item.status === ItemStatus.EN_REVISION,
         new AppError('Solo ítems EN_REVISION pueden iniciar revisión', 409, 'INVALID_STATE'));
-      const updated = await this.updateWithVersion(tx, itemId, item.version, { assignedReviewerId: reviewerId });
+      assert(!item.assignedReviewerId || item.assignedReviewerId === reviewerId,
+        new AppError('Este documento ya tiene un revisor asignado', 409, 'REVIEWER_ALREADY_ASSIGNED'));
+      const updated = item.assignedReviewerId
+        ? item
+        : await this.updateWithVersion(tx, itemId, item.version, { assignedReviewerId: reviewerId });
       await tx.workflowLog.create({
         data: {
           itemId,
@@ -193,11 +199,45 @@ export class WorkflowService {
     });
   }
 
-  async returnForCorrection(itemId: string, reviewerId: string, comment: string) {
-    return this.observe(itemId, reviewerId, comment, WorkflowAction.DEVUELTO);
+  async returnForCorrection(itemId: string, reviewerId: string, comment: string, tx?: Prisma.TransactionClient) {
+    return tx
+      ? this.observeInTx(tx, itemId, reviewerId, comment, WorkflowAction.DEVUELTO)
+      : this.observe(itemId, reviewerId, comment, WorkflowAction.DEVUELTO);
   }
 
-  async reject(itemId: string, reviewerId: string, justification: string) {
-    return this.observe(itemId, reviewerId, justification, WorkflowAction.RECHAZADO);
+  async reject(itemId: string, reviewerId: string, justification: string, tx?: Prisma.TransactionClient) {
+    return tx
+      ? this.observeInTx(tx, itemId, reviewerId, justification, WorkflowAction.RECHAZADO)
+      : this.observe(itemId, reviewerId, justification, WorkflowAction.RECHAZADO);
+  }
+
+  async releaseExpiredEmbargoes() {
+    return prisma.$transaction(async (tx) => {
+      const expired = await tx.item.findMany({
+        where: { status: ItemStatus.EMBARGADO, embargoDate: { lte: new Date() } },
+        select: { id: true, version: true, status: true },
+      });
+      if (expired.length === 0) return 0;
+      const actor = await tx.user.findFirst({
+        where: { role: UserRole.ADMIN, isActive: true },
+        select: { id: true },
+        orderBy: { createdAt: 'asc' },
+      });
+      assert(actor, new AppError('No hay administrador activo para registrar la liberación de embargos', 500, 'NO_ADMIN_ACTOR'));
+      for (const item of expired) {
+        await this.updateWithVersion(tx, item.id, item.version, { status: ItemStatus.PUBLICADO, embargoDate: null });
+        await tx.workflowLog.create({
+          data: {
+            itemId: item.id,
+            actorId: actor.id,
+            action: WorkflowAction.PUBLICADO,
+            fromStatus: item.status,
+            toStatus: ItemStatus.PUBLICADO,
+            comment: 'Embargo vencido',
+          },
+        });
+      }
+      return expired.length;
+    });
   }
 }

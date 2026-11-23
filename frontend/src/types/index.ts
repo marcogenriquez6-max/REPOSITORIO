@@ -13,6 +13,10 @@ export interface User {
   createdAt?: string;
 }
 
+export interface UserWithFaculties extends User {
+  assignedFaculties: Array<{ community: { id: string; name: string } }>;
+}
+
 export interface AuthResponse {
   token: string;
   refreshToken?: string;
@@ -150,12 +154,14 @@ export interface InboxResponse {
 
 export interface StatsOverview {
   byStatus: Partial<Record<ItemStatus, number>>;
-  activeUsers: number;
-  pendingObservations: number;
   totalDownloads: number;
+  activeUsers?: number;
+  pendingObservations?: number;
 }
 
 export interface AdminStats extends StatsOverview {
+  activeUsers: number;
+  pendingObservations: number;
   passedChecks: number;
   topViewed: Array<{ id: string; title: string; views: number }>;
   topDownloaded: Array<{ id: string; title: string; downloads: number }>;

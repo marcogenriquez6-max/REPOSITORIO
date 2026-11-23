@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
+import { getCommunityChain } from '../../shared/access';
 import { AppError, NotFoundError } from '../../shared/errors';
 import { slugify } from '../../shared/slug';
 import { CreateCommunityDto, ListCommunitiesDto, UpdateCommunityDto } from './communities.dto';
@@ -45,6 +46,17 @@ export class CommunitiesService {
 
   async update(id: string, dto: UpdateCommunityDto) {
     await this.getById(id);
+    if (dto.parentId !== undefined) {
+      if (dto.parentId === id) {
+        throw new AppError('Una comunidad no puede ser su propia padre', 422, 'HIERARCHY_CYCLE');
+      }
+      if (dto.parentId) {
+        const ancestors = await getCommunityChain(dto.parentId);
+        if (ancestors.includes(id)) {
+          throw new AppError('La jerarquía de comunidades no puede contener ciclos', 422, 'HIERARCHY_CYCLE');
+        }
+      }
+    }
     return prisma.community.update({
       where: { id },
       data: {

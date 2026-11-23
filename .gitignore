@@ -1,8 +1,21 @@
 node_modules/
 dist/
 .env
+.env.*
+!.env.example
+!**/.env.example
 *.log
 .DS_Store
 
 NUL
 frontend/NUL
+
+backend/storage/originals/*
+!backend/storage/originals/.gitkeep
+backend/storage/thumbnails/*
+!backend/storage/thumbnails/.gitkeep
+
+*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
+frontend/.netlify/netlify.toml

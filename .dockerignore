@@ -1,0 +1,12 @@
+.git
+.env
+.env.*
+!*.example
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+backend/storage/originals
+backend/storage/thumbnails
+backend/storage/auditoria
+**/*.pdf
+*.log

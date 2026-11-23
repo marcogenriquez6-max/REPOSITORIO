@@ -1,13 +1,29 @@
-import { Prisma, ItemStatus } from '@prisma/client';
+import { Prisma, ItemStatus, WorkflowAction } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { isScopedReviewer } from '../../shared/access';
 import { AppError, ForbiddenError, NotFoundError, assert } from '../../shared/errors';
 import { CreateItemDto, ListItemsDto, UpdateMetadataDto } from './items.dto';
 import { buildItemsWhere } from './items.query';
 
+const bitstreamInclude = {
+  orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+  select: {
+    id: true,
+    itemId: true,
+    originalName: true,
+    mimeType: true,
+    sizeBytes: true,
+    bundle: true,
+    downloadCount: true,
+    isPrimary: true,
+    description: true,
+    createdAt: true,
+  },
+} satisfies Prisma.BitstreamFindManyArgs;
+
 const detailInclude = {
   metadata: { orderBy: [{ element: 'asc' }, { qualifier: 'asc' }, { place: 'asc' }] },
-  bitstreams: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] },
+  bitstreams: bitstreamInclude,
   collection: { include: { community: true } },
   creator: { select: { id: true, fullName: true, email: true, role: true } },
   assignedReviewer: { select: { id: true, fullName: true, email: true } },
@@ -18,13 +34,23 @@ const detailInclude = {
 
 type DetailedItem = Prisma.ItemGetPayload<{ include: typeof detailInclude }>;
 
-// Public views never expose internal review data (checks, observations, audit log, e-mails or hashes).
+// Public views expose only catalog metadata; binaries are served by /files/:id/download.
 function toPublicItem(item: DetailedItem) {
-  const { reviewChecks, observations, workflowLogs, assignedReviewer, assignedReviewerId, creator, bitstreams, ...rest } = item;
   return {
-    ...rest,
-    creator: creator ? { id: creator.id, fullName: creator.fullName } : null,
-    bitstreams: bitstreams.map(({ filePath, sha256Hash, ...bitstream }) => bitstream),
+    id: item.id,
+    status: item.status,
+    embargoDate: item.embargoDate,
+    viewCount: item.viewCount,
+    publishedAt: item.publishedAt,
+    submittedAt: item.submittedAt,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+    handleUri: item.handleUri,
+    version: item.version,
+    collection: item.collection,
+    creator: item.creator ? { id: item.creator.id, fullName: item.creator.fullName } : null,
+    metadata: item.metadata,
+    bitstreams: item.bitstreams,
   };
 }
 
@@ -163,20 +189,45 @@ export class ItemsService {
   }
 
   async assignReviewer(itemId: string, reviewerId: string) {
-    const reviewer = await prisma.user.findUnique({
-      where: { id: reviewerId },
-      select: { id: true, role: true, isActive: true },
-    });
-    assert(reviewer, new NotFoundError('Revisor no encontrado'));
-    assert(reviewer.isActive && (reviewer.role === 'REVISOR' || reviewer.role === 'ADMIN'),
-      new AppError('El usuario no puede ser asignado como revisor', 422, 'INVALID_REVIEWER'));
+    return prisma.$transaction(async (tx) => {
+      const reviewer = await tx.user.findUnique({
+        where: { id: reviewerId },
+        select: { id: true, role: true, isActive: true },
+      });
+      assert(reviewer, new NotFoundError('Revisor no encontrado'));
+      assert(reviewer.isActive && (reviewer.role === 'REVISOR' || reviewer.role === 'ADMIN'),
+        new AppError('El usuario no puede ser asignado como revisor', 422, 'INVALID_REVIEWER'));
 
-    const item = await prisma.item.findUnique({ where: { id: itemId }, select: { id: true } });
-    assert(item, new NotFoundError('Ítem no encontrado'));
-    return prisma.item.update({
-      where: { id: itemId },
-      data: { assignedReviewerId: reviewerId, version: { increment: 1 } },
-      select: { id: true, assignedReviewerId: true, version: true },
+      const item = await tx.item.findUnique({
+        where: { id: itemId },
+        select: { id: true, version: true, status: true, collection: { select: { communityId: true } } },
+      });
+      assert(item, new NotFoundError('Ítem no encontrado'));
+      const editableStatuses: ItemStatus[] = [ItemStatus.BORRADOR, ItemStatus.EN_REVISION, ItemStatus.OBSERVADO];
+      assert(editableStatuses.includes(item.status),
+        new AppError('Solo se puede asignar revisor en estados editables', 409, 'INVALID_STATE'));
+      const scoped = reviewer.role === 'ADMIN' || await isScopedReviewer(reviewerId, item.collection.communityId);
+      assert(scoped, new AppError('El revisor no tiene ámbito sobre esta comunidad', 422, 'REVIEWER_OUT_OF_SCOPE'));
+
+      const updated = await tx.item.updateMany({
+        where: { id: itemId, version: item.version },
+        data: { assignedReviewerId: reviewerId, version: { increment: 1 } },
+      });
+      assert(updated.count === 1, new AppError('El documento fue modificado por otra solicitud', 409, 'CONCURRENT_UPDATE'));
+      await tx.workflowLog.create({
+        data: {
+          itemId,
+          actorId: reviewerId,
+          action: WorkflowAction.REVISION_INICIADA,
+          fromStatus: item.status,
+          toStatus: item.status,
+          comment: 'Revisor asignado por administración',
+        },
+      });
+      return tx.item.findUniqueOrThrow({
+        where: { id: itemId },
+        select: { id: true, assignedReviewerId: true, version: true },
+      });
     });
   }
 }

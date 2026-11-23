@@ -1,7 +1,7 @@
 import api from './axios';
 import type {
   Collection, Community, FacetsResponse, InboxResponse, Item, Observation, Pagination, ReviewCheck,
-  StatsOverview, AdminStats, User, WorkflowLog, HistoryEntry,
+  StatsOverview, AdminStats, User, UserWithFaculties, WorkflowLog, HistoryEntry,
 } from '../types';
 
 const unwrap = <T>(res: any): T => (res?.data?.data ?? res?.data ?? res) as T;
@@ -20,6 +20,8 @@ export const reviewApi = {
     unwrap(await api.post(`/review/items/${itemId}/observations`, data)),
   resolveObservation: async (id: string, response: string): Promise<Observation> =>
     unwrap(await api.patch(`/review/observations/${id}/resolve`, { response })),
+  respondObservation: async (id: string, response: string): Promise<Observation> =>
+    unwrap(await api.patch(`/observations/${id}/respond`, { response })),
   start: async (itemId: string): Promise<Item> => unwrap(await api.post(`/review/items/${itemId}/start`)),
   returnForCorrection: async (itemId: string, comment: string): Promise<any> =>
     unwrap(await api.post(`/review/items/${itemId}/return`, { comment })),
@@ -53,6 +55,9 @@ export const catalogApi = {
 export const usersApi = {
   create: async (data: { email: string; fullName: string; role: string; password: string }): Promise<User> =>
     unwrap(await api.post('/users', data)),
+  getById: async (id: string): Promise<UserWithFaculties> => unwrap(await api.get(`/users/${id}`)),
+  assignFaculties: async (id: string, communityIds: string[]): Promise<UserWithFaculties> =>
+    unwrap(await api.put(`/users/${id}/faculties`, { communityIds })),
 };
 
 export const depositApi = {
@@ -75,6 +80,18 @@ export const adminApi = {
 export async function fetchPdfBlob(bitstreamId: string): Promise<string> {
   const response = await api.get(`/files/${bitstreamId}/preview`, { responseType: 'blob' });
   return URL.createObjectURL(response.data as Blob);
+}
+
+export async function downloadPdf(bitstreamId: string, fileName?: string): Promise<void> {
+  const response = await api.get(`/files/${bitstreamId}/download`, { responseType: 'blob' });
+  const url = URL.createObjectURL(response.data as Blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = fileName || 'documento.pdf';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 export type { WorkflowLog };

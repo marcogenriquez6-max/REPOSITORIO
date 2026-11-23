@@ -18,11 +18,14 @@ export default {
           950: '#3d0f10',
         },
         brand: {
+          50:  '#fdf4f3',
+          100: '#fbe7e5',
           200: '#fbe9e7',
           300: '#f5c0bc',
           400: '#e1252b',
           500: '#c01f26',
           600: '#9e2422',
+          700: '#822220',
         },
         gold: {
           50:  '#fef9ec',
@@ -46,6 +49,9 @@ export default {
           DEFAULT: '#241316',
           soft:    '#5c4b4d',
         },
+      },
+      opacity: {
+        8: '0.08',
       },
       fontFamily: {
         sans:    ['Montserrat', 'Inter', 'Segoe UI', 'system-ui', '-apple-system', 'sans-serif'],

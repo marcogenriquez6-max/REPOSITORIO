@@ -8,7 +8,6 @@ import { prisma } from '../../config/prisma';
 import { env } from '../../config/env';
 import { AppError, ForbiddenError, NotFoundError, assert } from '../../shared/errors';
 import { removeFileSafe } from '../../config/multer';
-import { isScopedReviewer } from '../../shared/access';
 
 export async function hashAndValidatePdf(filePath: string): Promise<string> {
   // strict magic bytes check: %PDF-
@@ -17,6 +16,11 @@ export async function hashAndValidatePdf(filePath: string): Promise<string> {
     const header = Buffer.alloc(5);
     await fd.read(header, 0, 5, 0);
     assert(header.toString('ascii') === '%PDF-', new AppError('Firma PDF inválida', 415, 'INVALID_PDF_SIGNATURE'));
+    const stat = await fd.stat();
+    const tailSize = Math.min(1024, stat.size);
+    const tail = Buffer.alloc(tailSize);
+    await fd.read(tail, 0, tailSize, stat.size - tailSize);
+    assert(tail.toString('latin1').includes('%%EOF'), new AppError('Estructura PDF inválida', 415, 'INVALID_PDF_SIGNATURE'));
   } finally {
     await fd.close();
   }
@@ -32,6 +36,7 @@ export class FilesService {
     try {
       assert(file.mimetype === 'application/pdf', new AppError('Solo se permiten archivos PDF', 415, 'INVALID_MIME'));
       const sha256 = await hashAndValidatePdf(file.path);
+      const content = await fsp.readFile(file.path);
 
       const stored = await prisma.$transaction(async (tx) => {
         const item = await tx.item.findUnique({ where: { id: itemId }, select: { id: true, creatorId: true, status: true } });
@@ -51,7 +56,6 @@ export class FilesService {
         }
 
         const relPath = path.relative(env.storageRoot, file.path).replace(/\\/g, '/');
-        const content = await fsp.readFile(file.path);
         return tx.bitstream.create({
           data: {
             itemId,
@@ -76,7 +80,7 @@ export class FilesService {
     }
   }
 
-  async getDownload(bitstreamId: string, requester?: { id: string; role: string }) {
+  async getDownload(bitstreamId: string, requester?: { id: string; role: string }, countDownload = true) {
     const b = await prisma.bitstream.findUnique({
       where: { id: bitstreamId },
       include: {
@@ -89,11 +93,7 @@ export class FilesService {
     const isOwner = requester?.id === item.creatorId;
     const isAdmin = requester?.role === 'ADMIN';
     const isAssignedReviewer = requester?.id === item.assignedReviewerId;
-    let scopedReviewer = false;
-    if (requester?.role === 'REVISOR') {
-      scopedReviewer = await isScopedReviewer(requester.id, item.collection.communityId);
-    }
-    const privileged = isOwner || isAdmin || isAssignedReviewer || scopedReviewer;
+    const privileged = isOwner || isAdmin || isAssignedReviewer;
 
     const now = new Date();
     const embargoActive = item.status === ItemStatus.EMBARGADO && item.embargoDate && item.embargoDate.getTime() > now.getTime();
@@ -116,12 +116,15 @@ export class FilesService {
     } else {
       const abs = path.resolve(env.storageRoot, b.filePath);
       const root = path.resolve(env.storageRoot);
-      if (!abs.startsWith(root + path.sep) && abs !== root) throw new AppError('Ruta de archivo inválida', 400, 'INVALID_PATH');
+      const relative = path.relative(root, abs);
+      if (relative.startsWith('..') || path.isAbsolute(relative)) throw new AppError('Ruta de archivo inválida', 400, 'INVALID_PATH');
       await fsp.access(abs);
       content = await fsp.readFile(abs);
     }
 
-    await prisma.bitstream.update({ where: { id: b.id }, data: { downloadCount: { increment: 1 } } });
+    if (countDownload) {
+      await prisma.bitstream.update({ where: { id: b.id }, data: { downloadCount: { increment: 1 } } });
+    }
     return { content, name: b.originalName, mime: b.mimeType || 'application/pdf' };
   }
 }

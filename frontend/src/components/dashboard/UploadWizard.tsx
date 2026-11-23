@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FileText, Send, UploadCloud, X } from 'lucide-react';
 import { catalogApi, depositApi, itemsApi } from '../../api/services';
 import { getErrorMessage } from '../../api/errors';
+import type { Collection } from '../../types';
 import Alert from '../ui/Alert';
 import { formatBytes } from '../../lib/format';
 
@@ -28,7 +29,8 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-function buildMetadata(values: FormValues) {
+function buildMetadata(values: FormValues, collections: Collection[]) {
+  const selected = collections.find((collection) => collection.id === values.collectionId);
   return [
     { element: 'title', value: values.title },
     { element: 'contributor', qualifier: 'author', value: values.author },
@@ -36,6 +38,8 @@ function buildMetadata(values: FormValues) {
     { element: 'date', qualifier: 'issued', value: values.year },
     { element: 'description', qualifier: 'abstract', value: values.abstract },
     ...values.keywords.split(',').map((keyword) => ({ element: 'subject', value: keyword.trim() })).filter((keyword) => keyword.value),
+    ...(selected ? [{ element: 'subject', qualifier: 'programa', value: selected.name }] : []),
+    ...(selected?.community?.name ? [{ element: 'subject', qualifier: 'area', value: selected.community.name }] : []),
     { element: 'type', value: values.type === 'Otro' ? (values.customType || 'Otro') : values.type },
     { element: 'description', qualifier: 'modality', value: values.modality },
     { element: 'rights', value: values.rights },
@@ -66,7 +70,10 @@ export default function UploadWizard({ onDone, onCancel }: { onDone: (message: s
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
       if (!file) throw new Error('Debe adjuntar el archivo PDF del documento.');
-      const metadata = buildMetadata(values);
+      if (!collections.some((collection) => collection.id === values.collectionId)) {
+        throw new Error('La colección seleccionada ya no está disponible.');
+      }
+      const metadata = buildMetadata(values, collections);
       let itemId = itemIdRef.current;
       if (!itemId) {
         setStage('Creando el registro…');

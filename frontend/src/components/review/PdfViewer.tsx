@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Download, ExternalLink, FileText } from 'lucide-react';
-import { fetchPdfBlob } from '../../api/services';
+import { downloadPdf, fetchPdfBlob } from '../../api/services';
 import { Skeleton } from '../ui/Skeleton';
 
 export default function PdfViewer({ bitstreamId, fileName }: { bitstreamId?: string; fileName?: string }) {
@@ -62,9 +62,9 @@ export default function PdfViewer({ bitstreamId, fileName }: { bitstreamId?: str
         <a href={url} target="_blank" rel="noreferrer" className="btn-secondary px-3 py-1.5 text-xs">
           <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" /> Abrir en nueva pestaña
         </a>
-        <a href={url} download={fileName || 'documento.pdf'} className="btn-primary px-3 py-1.5 text-xs">
+        <button type="button" onClick={() => void downloadPdf(bitstreamId, fileName)} className="btn-primary px-3 py-1.5 text-xs">
           <Download className="h-3.5 w-3.5" aria-hidden="true" /> Descargar PDF
-        </a>
+        </button>
       </div>
       <object data={url} type="application/pdf" className="h-[70vh] w-full rounded border bg-white" aria-label={`Visor del documento ${fileName ?? ''}`.trim()}>
         <iframe src={url} title={fileName ? `Visor PDF: ${fileName}` : 'Visor PDF'} className="h-[70vh] w-full" />

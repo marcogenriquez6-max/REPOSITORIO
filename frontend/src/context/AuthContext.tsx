@@ -14,7 +14,13 @@ const Ctx = createContext<AuthCtx | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(() => {
     const raw = localStorage.getItem('user');
-    return raw ? (JSON.parse(raw) as User) : null;
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as User;
+    } catch {
+      localStorage.removeItem('user');
+      return null;
+    }
   });
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
 
@@ -28,6 +34,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     else localStorage.removeItem('user');
   }, [user]);
 
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    api.get('/auth/me').then((res) => {
+      const data = (res.data as any).data ?? res.data;
+      if (!cancelled && data) setUser(data as User);
+    }).catch(() => {
+      if (cancelled) return;
+      setToken(null);
+      setUser(null);
+      localStorage.removeItem('refreshToken');
+    });
+    return () => { cancelled = true; };
+  }, [token]);
+
+  useEffect(() => {
+    const onRefreshed = (event: Event) => {
+      const data = (event as CustomEvent).detail;
+      if (data?.token) setToken(data.token);
+      if (data?.user) setUser(data.user as User);
+    };
+    const onExpired = () => {
+      setToken(null);
+      setUser(null);
+      localStorage.removeItem('refreshToken');
+    };
+    window.addEventListener('unior:auth-refreshed', onRefreshed);
+    window.addEventListener('unior:session-expired', onExpired);
+    return () => {
+      window.removeEventListener('unior:auth-refreshed', onRefreshed);
+      window.removeEventListener('unior:session-expired', onExpired);
+    };
+  }, []);
+
   const login = async (email: string, password: string) => {
     const res = await api.post<AuthResponse | { data: AuthResponse }>('/auth/login', { email, password });
     const data = (res.data as any).data || res.data;
@@ -37,6 +77,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = () => {
+    if (localStorage.getItem('refreshToken')) {
+      void api.post('/auth/logout').catch(() => undefined);
+    }
     setToken(null);
     setUser(null);
     localStorage.removeItem('refreshToken');

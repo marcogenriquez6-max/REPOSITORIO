@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, type ReactNode } from 'react';
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -22,6 +22,7 @@ const TITLES: Array<[RegExp, string]> = [
   [/^\/dashboard\/review/, 'Bandeja de revisión'],
   [/^\/dashboard\/admin/, 'Administración'],
   [/^\/dashboard/, 'Mis depósitos'],
+  [/^\/handle\//, 'Documento'],
   [/^\/items\//, 'Documento'],
   [/^\/search/, 'Catálogo'],
   [/^\/communities/, 'Comunidades'],
@@ -49,9 +50,14 @@ function RoutedContent({ children }: { children: ReactNode }) {
   );
 }
 
+function HandleRedirect() {
+  const { itemId } = useParams();
+  return <Navigate to={`/items/${itemId}`} replace />;
+}
+
 export default function App() {
   return (
-    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <BrowserRouter>
       <ScrollToTop />
       <RouteTitle />
       <a
@@ -69,6 +75,7 @@ export default function App() {
               <Route path="/" element={<HomePage />} />
               <Route path="/search" element={<SearchPage />} />
               <Route path="/communities" element={<CommunitiesPage />} />
+              <Route path="/handle/unior/:itemId" element={<HandleRedirect />} />
               <Route path="/items/:id" element={<ItemDetailPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/dashboard" element={<PrivateRoute><MyDepositsPage /></PrivateRoute>} />

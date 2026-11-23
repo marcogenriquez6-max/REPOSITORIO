@@ -18,6 +18,13 @@ export class AuthController {
     } catch (e) { next(e); }
   }
 
+  async logout(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = await service.logout(req.user!.id);
+      res.json(data);
+    } catch (e) { next(e); }
+  }
+
   async me(req: Request, res: Response, next: NextFunction) {
     try {
       const data = await service.me(req.user!.id);

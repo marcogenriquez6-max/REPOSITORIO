@@ -4,8 +4,8 @@ export const CHECK_DEFS = [
   { key: 'dc.title', label: 'Título correctamente registrado', mandatory: true },
   { key: 'dc.contributor.author', label: 'Autores identificados', mandatory: true },
   { key: 'dc.contributor.advisor', label: 'Tutor registrado cuando corresponda', mandatory: false },
-  { key: 'programa', label: 'Programa académico válido', mandatory: true },
-  { key: 'area', label: 'Área válida', mandatory: true },
+  { key: 'programa', label: 'Programa académico registrado', mandatory: true },
+  { key: 'area', label: 'Área registrada', mandatory: true },
   { key: 'dc.date.issued', label: 'Año correcto', mandatory: true },
   { key: 'dc.description.abstract', label: 'Resumen registrado', mandatory: true },
   { key: 'dc.subject', label: 'Palabras clave registradas', mandatory: true },
@@ -16,7 +16,7 @@ export const CHECK_DEFS = [
 export interface ItemForChecks {
   metadata: Array<{ schema: string; element: string; qualifier: string | null; value: string }>;
   bitstreams: Array<{ bundle: BitstreamBundle; isPrimary: boolean; mimeType: string; sha256Hash: string }>;
-  collection: { isActive: boolean; community: { isActive: boolean } };
+  collection: { name: string; community: { name: string } };
 }
 
 export function hasDc(meta: ItemForChecks['metadata'], element: string, qualifier?: string | null): boolean {
@@ -39,8 +39,8 @@ export function computeChecks(item: ItemForChecks): Record<string, boolean> {
     'dc.title': hasDc(item.metadata, 'title', null),
     'dc.contributor.author': hasDc(item.metadata, 'contributor', 'author'),
     'dc.contributor.advisor': hasDc(item.metadata, 'contributor', 'advisor'),
-    programa: item.collection.isActive,
-    area: item.collection.community.isActive,
+    programa: hasDc(item.metadata, 'subject', 'programa'),
+    area: hasDc(item.metadata, 'subject', 'area'),
     'dc.date.issued': yearOk,
     'dc.description.abstract': hasDc(item.metadata, 'description', 'abstract'),
     'dc.subject': hasDc(item.metadata, 'subject'),

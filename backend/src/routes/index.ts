@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { prisma } from '../config/prisma';
 import authRoutes from '../modules/auth/auth.routes';
 import usersRoutes from '../modules/users/users.routes';
 import communitiesRoutes from '../modules/communities/communities.routes';
@@ -14,6 +15,15 @@ const router = Router();
 
 router.get('/health', (_req, res) => {
   res.json({ success: true, status: 'ok', service: 'unior-repositorio-api', timestamp: new Date().toISOString() });
+});
+
+router.get('/health/ready', async (_req, res, next) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ success: true, status: 'ready', database: 'up', timestamp: new Date().toISOString() });
+  } catch (e) {
+    next(e);
+  }
 });
 
 router.use('/auth', authRoutes);

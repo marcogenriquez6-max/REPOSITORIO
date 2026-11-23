@@ -11,6 +11,8 @@ const metadata: ItemForChecks['metadata'] = [
   { schema: 'dc', element: 'date', qualifier: 'issued', value: '2026' },
   { schema: 'dc', element: 'description', qualifier: 'abstract', value: 'Resumen de la investigación' },
   { schema: 'dc', element: 'subject', qualifier: null, value: 'repositorio' },
+  { schema: 'dc', element: 'subject', qualifier: 'programa', value: 'Ingeniería de Sistemas' },
+  { schema: 'dc', element: 'subject', qualifier: 'area', value: 'Facultad de Ingeniería y Tecnología' },
   { schema: 'dc', element: 'type', qualifier: null, value: 'Tesis' },
   { schema: 'dc', element: 'rights', qualifier: null, value: 'Uso académico' },
 ];
@@ -22,7 +24,7 @@ const bitstreams: ItemForChecks['bitstreams'] = [
 const complete: ItemForChecks = {
   metadata,
   bitstreams,
-  collection: { isActive: true, community: { isActive: true } },
+  collection: { name: 'Tesis', community: { name: 'Ingeniería de Sistemas' } },
 };
 
 describe('computeChecks', () => {
@@ -55,6 +57,15 @@ describe('computeChecks', () => {
   it('fails mandatory metadata check when dc.rights is missing', () => {
     const result = computeChecks({ ...complete, metadata: metadata.filter((m) => m.element !== 'rights') });
     expect(result.metadatos_obligatorios).toBe(false);
+  });
+
+  it('fails catalog checks when program or area metadata is missing', () => {
+    const result = computeChecks({
+      ...complete,
+      metadata: metadata.filter((m) => !['programa', 'area'].includes(m.qualifier ?? '')),
+    });
+    expect(result.programa).toBe(false);
+    expect(result.area).toBe(false);
   });
 
   it('allows the advisor check to be optional', () => {

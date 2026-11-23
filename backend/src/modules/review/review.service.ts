@@ -37,7 +37,11 @@ export class ReviewService {
     if (actor.role === 'REVISOR') {
       const assigned = item.assignedReviewerId === actor.id;
       const scoped = await isScopedReviewer(actor.id, item.collection.communityId);
-      assert(assigned || scoped, new ForbiddenError('Sin ámbito sobre este documento'));
+      assert(scoped, new ForbiddenError('Revisor sin ámbito sobre esta facultad/carrera'));
+      const publicStatuses: ItemStatus[] = [ItemStatus.PUBLICADO, ItemStatus.EMBARGADO];
+      if (!publicStatuses.includes(item.status)) {
+        assert(assigned, new ForbiddenError('Debe estar asignado para revisar este documento'));
+      }
       return item;
     }
     throw new ForbiddenError('Rol no autorizado para revisión');
@@ -88,9 +92,11 @@ export class ReviewService {
         prisma.community.findMany({ select: { id: true, parentId: true } }),
       ]);
       const scopedIds = new Set<string>();
+      const visited = new Set<string>();
       for (const assignment of assignments) {
         let current: string | null = assignment.communityId;
-        while (current) {
+        while (current && !visited.has(current)) {
+          visited.add(current);
           scopedIds.add(current);
           current = allCommunities.find((c) => c.id === current)?.parentId ?? null;
         }
@@ -240,16 +246,42 @@ export class ReviewService {
     });
     assert(observation, new NotFoundError('Observación no encontrada'));
     if (actor.role !== 'ADMIN') {
+      assert(observation.authorId !== actor.id, new ForbiddenError('No puede resolver su propia observación'));
+      assert(observation.item.creatorId !== actor.id, new ForbiddenError('El depositante debe responder la observación'));
       const scoped = await isScopedReviewer(actor.id, observation.item.collection.communityId);
-      assert(observation.authorId === actor.id || scoped || observation.item.creatorId === actor.id,
-        new ForbiddenError('No autorizado para resolver esta observación'));
+      assert(scoped, new ForbiddenError('Revisor sin ámbito sobre esta observación'));
     }
-    assert(observation.status === ObservationStatus.PENDIENTE,
-      new AppError('La observación ya fue resuelta', 409, 'ALREADY_RESOLVED'));
-    return prisma.observation.update({
-      where: { id },
+    const updated = await prisma.observation.updateMany({
+      where: { id, status: ObservationStatus.PENDIENTE },
       data: { status: ObservationStatus.RESUELTA, response, resolvedById: actor.id, resolvedAt: new Date() },
+    });
+    if (updated.count !== 1) throw new AppError('La observación ya fue resuelta', 409, 'ALREADY_RESOLVED');
+    return prisma.observation.findUniqueOrThrow({
+      where: { id },
       include: { author: { select: { id: true, fullName: true } } },
+    });
+  }
+
+  async respondObservation(id: bigint, actor: { id: string; role: string }, response: string) {
+    const observation = await prisma.observation.findUnique({
+      where: { id },
+      include: { item: { select: { id: true, creatorId: true, status: true } } },
+    });
+    assert(observation, new NotFoundError('Observación no encontrada'));
+    assert(observation.item.creatorId === actor.id, new ForbiddenError('Solo el depositante puede responder'));
+    assert(observation.item.status === ItemStatus.OBSERVADO,
+      new AppError('El documento no está en fase de corrección', 409, 'INVALID_STATE'));
+    const updated = await prisma.observation.updateMany({
+      where: { id, status: ObservationStatus.PENDIENTE },
+      data: { status: ObservationStatus.RESUELTA, response, resolvedById: actor.id, resolvedAt: new Date() },
+    });
+    if (updated.count !== 1) throw new AppError('La observación ya fue resuelta', 409, 'ALREADY_RESOLVED');
+    return prisma.observation.findUniqueOrThrow({
+      where: { id },
+      include: {
+        author: { select: { id: true, fullName: true } },
+        resolvedBy: { select: { id: true, fullName: true } },
+      },
     });
   }
 
@@ -263,23 +295,27 @@ export class ReviewService {
   async returnForCorrection(itemId: string, actor: { id: string; role: string }, dto: DecisionDto) {
     await this.assertAccess(itemId, actor);
     assert(actor.role === 'ADMIN' || actor.role === 'REVISOR', new ForbiddenError('Acción no permitida'));
-    const item = await prisma.item.findUniqueOrThrow({ where: { id: itemId }, select: { status: true } });
-    assert(item.status === ItemStatus.EN_REVISION, new AppError('Solo ítems EN_REVISION pueden devolverse', 409, 'INVALID_STATE'));
-    await prisma.observation.create({
-      data: { itemId, authorId: actor.id, type: ObservationType.DEVOLUCION, description: dto.comment },
+    return prisma.$transaction(async (tx) => {
+      const item = await tx.item.findUniqueOrThrow({ where: { id: itemId }, select: { status: true } });
+      assert(item.status === ItemStatus.EN_REVISION, new AppError('Solo ítems EN_REVISION pueden devolverse', 409, 'INVALID_STATE'));
+      await tx.observation.create({
+        data: { itemId, authorId: actor.id, type: ObservationType.DEVOLUCION, description: dto.comment },
+      });
+      return workflow.returnForCorrection(itemId, actor.id, dto.comment, tx);
     });
-    return workflow.returnForCorrection(itemId, actor.id, dto.comment);
   }
 
   async reject(itemId: string, actor: { id: string; role: string }, dto: DecisionDto) {
     await this.assertAccess(itemId, actor);
     assert(actor.role === 'ADMIN' || actor.role === 'REVISOR', new ForbiddenError('Acción no permitida'));
-    const item = await prisma.item.findUniqueOrThrow({ where: { id: itemId }, select: { status: true } });
-    assert(item.status === ItemStatus.EN_REVISION, new AppError('Solo ítems EN_REVISION pueden rechazarse', 409, 'INVALID_STATE'));
-    await prisma.observation.create({
-      data: { itemId, authorId: actor.id, type: ObservationType.RECHAZO, description: dto.comment },
+    return prisma.$transaction(async (tx) => {
+      const item = await tx.item.findUniqueOrThrow({ where: { id: itemId }, select: { status: true } });
+      assert(item.status === ItemStatus.EN_REVISION, new AppError('Solo ítems EN_REVISION pueden rechazarse', 409, 'INVALID_STATE'));
+      await tx.observation.create({
+        data: { itemId, authorId: actor.id, type: ObservationType.RECHAZO, description: dto.comment },
+      });
+      return workflow.reject(itemId, actor.id, dto.comment, tx);
     });
-    return workflow.reject(itemId, actor.id, dto.comment);
   }
 
   async approve(itemId: string, actor: { id: string; role: string }, dto: DecisionDto) {

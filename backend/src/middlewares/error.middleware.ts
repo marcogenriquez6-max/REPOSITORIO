@@ -6,7 +6,7 @@ export function notFound(_req: Request, res: Response) {
   res.status(404).json({ success: false, code: 'NOT_FOUND', message: 'Ruta no encontrada' });
 }
 
-export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction) {
+export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction) {
   if (err instanceof AppError) {
     return res.status(err.statusCode).json({
       success: false,
@@ -25,6 +25,6 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
   }
 
   const message = err instanceof Error ? err.message : 'Error interno del servidor';
-  if (!env.isProd) console.error(err);
+  console.error('[unior-api]', { requestId: (req as any).requestId, method: req.method, path: req.originalUrl, code: (anyErr as any)?.code, error: err });
   return res.status(500).json({ success: false, code: 'INTERNAL_ERROR', message: env.isProd ? 'Error interno del servidor' : message });
 }
