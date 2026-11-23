@@ -13,6 +13,16 @@ import reviewRoutes from '../modules/review/review.routes';
 
 const router = Router();
 
+router.get('/', (_req, res) => {
+  res.json({
+    success: true,
+    service: 'unior-repositorio-api',
+    version: 'v1',
+    message: 'API del Repositorio Institucional UNIOR',
+    endpoints: ['/health', '/auth', '/items', '/communities', '/collections', '/discovery', '/stats', '/workflow', '/review', '/files', '/users'],
+  });
+});
+
 router.get('/health', (_req, res) => {
   res.json({ success: true, status: 'ok', service: 'unior-repositorio-api', timestamp: new Date().toISOString() });
 });
